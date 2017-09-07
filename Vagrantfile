@@ -34,7 +34,7 @@ require 'getoptlong'
 :SNAPSHOT
 
 swift_version="3.1.1"
-swift_platform="ubuntu16.10"
+swift_platform="ubuntu14.04"
 build_type=:RELEASE
 
 options = GetoptLong.new(
@@ -76,13 +76,18 @@ else
 end
 
 Vagrant.configure("2") do |config|
-
-  config.vm.box = "bento/ubuntu-16.10"
+ 
+  #
+  # Warning: 
+  #  - xenial  (16.04) boxes can NOT be used due to the issue reported here https://bugs.launchpad.net/cloud-images/+bug/1569237
+  #  - yakkety (16.10) boxes should not be used because they are end of life (see https://wiki.ubuntu.com/Releases)
+  #
+  config.vm.box = "ubuntu/trusty64"
 
   config.vm.provider "virtualbox"
 
   config.vm.provider "parallels" do |v|
-    v.name = "Ubuntu Linux 16.10 - Swift Development"
+    v.name = "Ubuntu 14.04 - Swift Development"
     v.memory = 512
   end
 
@@ -98,6 +103,11 @@ Vagrant.configure("2") do |config|
     #!/bin/sh
 
     #
+    # Make sure the distro is up to date
+    #
+    # sudo apt-get --assume-yes dist-upgrade
+
+    #
     # Update apt-get first
     #
     sudo apt-get update
@@ -105,7 +115,8 @@ Vagrant.configure("2") do |config|
     #
     # Install the needed development and admin packages
     #
-    sudo apt-get --assume-yes install clang libicu-dev libcurl3 libpython2.7-dev
+    sudo apt-get --assume-yes install clang libicu-dev libpython2.7-dev
+
     #
     # Import the gpg keys
     #
@@ -116,8 +127,8 @@ Vagrant.configure("2") do |config|
     #
     # Note: We're using wget here because of a display issue with curl and vagrant.  The display is corrupt using curl.
     #
-    wget --progress=bar:force #{source_directory}"/"#{source_name}".tar.gz
-    wget --progress=bar:force #{source_directory}"/"#{source_name}".tar.gz.sig
+    wget --progress=bar:force "#{source_directory}"/"#{source_name}".tar.gz
+    wget --progress=bar:force "#{source_directory}"/"#{source_name}".tar.gz.sig
 
     #
     # Validate the file against the key
@@ -132,28 +143,28 @@ Vagrant.configure("2") do |config|
         #
         tar zxf "#{source_name}".tar.gz
 
-    #
-    # Make the vagrant user the owner of all files.
-    #
+        #
+        # Make the vagrant user the owner of all files.
+        #
         sudo chown -R vagrant:vagrant swift-*
 
-    #
-    # Clean up
-    #
-    rm "#{source_name}".tar.gz
-    rm "#{source_name}".tar.gz.sig
+        #
+        # Clean up
+        #
+        rm "#{source_name}".tar.gz
+        rm "#{source_name}".tar.gz.sig
 
         # Update the path so we can get to swift
         #
-        echo "export PATH=/home/vagrant/#{source_name}/usr/bin:\"${PATH}\"" >> .profile
-    #
-    # Export C_INCLUDE_PATH and CPLUS_INCLUDE_PATH so that swift REPL is able to load libraries properly
-    #
-        echo "export C_INCLUDE_PATH=/home/vagrant/#{source_name}/usr/lib/swift/clang/include/" >> .profile
+        echo "export PATH=$(pwd)/#{source_name}/usr/bin:\"${PATH}\"" >> .profile
+        #
+        # Export C_INCLUDE_PATH and CPLUS_INCLUDE_PATH so that swift REPL is able to load libraries properly
+        #
+        echo "export C_INCLUDE_PATH=$(pwd)/#{source_name}/usr/lib/swift/clang/include/" >> .profile
         echo "export CPLUS_INCLUDE_PATH=$C_INCLUDE_PATH" >> .profile
         echo ""
         echo "Swift #{source_name} has been successfully installed on Linux"
-    echo ""
+        echo ""
         echo "To use it, call 'vagrant ssh' and once logged in, cd to the /vagrant directory"
         echo ""
     else
