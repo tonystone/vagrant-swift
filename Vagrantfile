@@ -29,23 +29,22 @@ require 'getoptlong'
 #
 # Examples:
 #
-# > vagrant --build-type=SNAPSHOT --swift-version=2017-09-05-a up --provider=virtualbox
+# > vagrant --swift-version=2017-09-05 up
 #
-# > vagrant --build-type=RELEASE --swift-version="2.2.1" up --provider=virtualbox
+# > vagrant --platform-version=16.10 --swift-version="2.2.1" up
 #
 :RELEASE
 :SNAPSHOT
 
+# Parameter defaults
 platform_provider="ubuntu"
 platform_version="16.04"
-
 swift_version="3.1.1"
 build_type=:RELEASE
 
 options = GetoptLong.new(
     [ '--platform-version', GetoptLong::REQUIRED_ARGUMENT ],
-    [ '--swift-version',    GetoptLong::REQUIRED_ARGUMENT ],
-    [ '--build-type'   ,    GetoptLong::REQUIRED_ARGUMENT ]
+    [ '--swift-version',    GetoptLong::REQUIRED_ARGUMENT ]
 )
 options.quiet = true
 
@@ -53,7 +52,6 @@ begin
   options.each do |option, value|
     if option == '--platform-version' then platform_version=value
     elsif option == '--swift-version' then swift_version=value
-    elsif option == '--build-type' then build_type=value.to_sym
     end
   end
 rescue GetoptLong::InvalidOption
@@ -65,6 +63,20 @@ platform_dir=platform.tr('.', '')
 
 source_name=""
 source_directory=""
+
+#
+# Test whether the version is a :RELEASE or a :SNAPSHOT
+# and if :SNAPSHOT append the '-a' to the end of the version.
+#
+if swift_version =~ (/^\d{1}\.\d{1}(\.\d{1})?$/)
+  build_type=:RELEASE
+elsif swift_version =~ (/^\d{4}-\d{2}-\d{2}$/)
+  build_type=:SNAPSHOT
+  swift_version+='-a'
+else
+  puts 'Invalid Argument: --swift-version must be in the release form ##.##[.##] or snapshot form ####-##-##.'
+  abort
+end
 
 if build_type == :SNAPSHOT
   # Example:
@@ -88,7 +100,9 @@ Vagrant.configure("2") do |config|
 
   config.vm.box = "bento/#{platform_provider}-#{platform_version}"
 
-  config.vm.provider "virtualbox"
+  config.vm.provider "virtualbox" do |v|
+    v.name = "Swift " + "#{build_type}".capitalize + " #{swift_version} Development (#{platform_provider} #{platform_version})"
+  end
 
   config.vm.provision "Fix no TTY",                           :privileged => true,  type: :shell, inline: "sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
   config.vm.provision "Change to non-interactive shell",      :privileged => true,  type: :shell, inline: "ex +'%s@DPkg@//DPkg' -cwq /etc/apt/apt.conf.d/70debconf && sudo dpkg-reconfigure debconf -f noninteractive -p critical"
