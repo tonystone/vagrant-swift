@@ -36,19 +36,23 @@ require 'getoptlong'
 :RELEASE
 :SNAPSHOT
 
+platform_provider="ubuntu"
+platform_version="16.04"
+
 swift_version="3.1.1"
-swift_platform="ubuntu14.04"
 build_type=:RELEASE
 
 options = GetoptLong.new(
-    [ '--swift-version', GetoptLong::REQUIRED_ARGUMENT ],
-    [ '--build-type'   , GetoptLong::REQUIRED_ARGUMENT ]
+    [ '--platform-version', GetoptLong::REQUIRED_ARGUMENT ],
+    [ '--swift-version',    GetoptLong::REQUIRED_ARGUMENT ],
+    [ '--build-type'   ,    GetoptLong::REQUIRED_ARGUMENT ]
 )
 options.quiet = true
 
 begin
   options.each do |option, value|
-    if option == '--swift-version' then swift_version=value
+    if option == '--platform-version' then platform_version=value
+    elsif option == '--swift-version' then swift_version=value
     elsif option == '--build-type' then build_type=value.to_sym
     end
   end
@@ -56,17 +60,19 @@ rescue GetoptLong::InvalidOption
   pass
 end
 
+platform="#{platform_provider}#{platform_version}"
+platform_dir=platform.tr('.', '')
+
 source_name=""
 source_directory=""
-swift_platform_dir=swift_platform.tr('.', '')
 
 if build_type == :SNAPSHOT
   # Example:
   #
   # https://swift.org/builds/development/ubuntu1610/swift-DEVELOPMENT-SNAPSHOT-2017-09-05-a/swift-DEVELOPMENT-SNAPSHOT-2017-09-05-a-ubuntu16.10.tar.gz
   #
-  source_directory = "https://swift.org/builds/development/#{swift_platform_dir}/swift-DEVELOPMENT-SNAPSHOT-#{swift_version}"
-  source_name      = "swift-DEVELOPMENT-SNAPSHOT-#{swift_version}-#{swift_platform}"
+  source_directory = "https://swift.org/builds/development/#{platform_dir}/swift-DEVELOPMENT-SNAPSHOT-#{swift_version}"
+  source_name      = "swift-DEVELOPMENT-SNAPSHOT-#{swift_version}-#{platform}"
 
 else
   #
@@ -74,18 +80,13 @@ else
   #
   # https://swift.org/builds/swift-3.1.1-release/ubuntu1610/swift-3.1.1-RELEASE/swift-3.1.1-RELEASE-ubuntu16.10.tar.gz
   #
-  source_directory = "https://swift.org/builds/swift-#{swift_version}-release/#{swift_platform_dir}/swift-#{swift_version}-RELEASE"
-  source_name      = "swift-#{swift_version}-RELEASE-#{swift_platform}"
+  source_directory = "https://swift.org/builds/swift-#{swift_version}-release/#{platform_dir}/swift-#{swift_version}-RELEASE"
+  source_name      = "swift-#{swift_version}-RELEASE-#{platform}"
 end
 
 Vagrant.configure("2") do |config|
 
-  #
-  # Warning:
-  #  - xenial  (16.04) boxes can NOT be used due to the issue reported here https://bugs.launchpad.net/cloud-images/+bug/1569237
-  #  - yakkety (16.10) boxes should not be used because they are end of life (see https://wiki.ubuntu.com/Releases)
-  #
-  config.vm.box = "ubuntu/trusty64"
+  config.vm.box = "bento/#{platform_provider}-#{platform_version}"
 
   config.vm.provider "virtualbox"
 
