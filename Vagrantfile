@@ -89,34 +89,11 @@ Vagrant.configure("2") do |config|
 
   config.vm.provider "virtualbox"
 
-  config.vm.provision "Fix no TTY",                      type: :shell, inline: "sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
-  config.vm.provision "Change to non-interactive shell", type: :shell, inline: "ex +'%s@DPkg@//DPkg' -cwq /etc/apt/apt.conf.d/70debconf && sudo dpkg-reconfigure debconf -f noninteractive -p critical"
-  config.vm.provision "Update apt-get",                  type: :shell, inline: "apt-get update"
-  config.vm.provision "Install clang 3.6 or greater",    type: :shell, inline: <<-SHELL
-    #!/bin/sh
-
-    function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
-
-    AVAILABLE_CLANG_VERSION=$(apt-cache policy clang | grep Candidate | cut -d ':' -f 3 | cut -d '-' -f 1)
-
-    #
-    # Clang 3.6 or greater is required for swift and REPL
-    #
-    if version_ge $AVAILABLE_CLANG_VERSION "3.6"; then
-        echo ""
-        echo "Clang version $AVAILABLE_CLANG_VERSION available, installing."
-        echo ""
-        apt-get --assume-yes install clang
-    else
-        echo ""
-        echo "Clang version $AVAILABLE_CLANG_VERSION lower than required version, installing 3.6 instead."
-        echo ""
-        apt-get --assume-yes install clang-3.6 lldb-3.6 python-lldb-3.6
-        sudo ln -s /usr/bin/clang-3.6 /usr/bin/clang
-        sudo ln -s /usr/bin/clang++-3.6 /usr/bin/clang++
-    fi
-   SHELL
-  config.vm.provision "Install common (all ubuntu versions) development libraries", type: :shell, inline: "apt-get --assume-yes install libicu-dev libpython2.7-dev"
+  config.vm.provision "Fix no TTY",                           :privileged => true,  type: :shell, inline: "sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
+  config.vm.provision "Change to non-interactive shell",      :privileged => true,  type: :shell, inline: "ex +'%s@DPkg@//DPkg' -cwq /etc/apt/apt.conf.d/70debconf && sudo dpkg-reconfigure debconf -f noninteractive -p critical"
+  config.vm.provision "Update apt-get",                       :privileged => true,  type: :shell, inline: "apt-get update"
+  config.vm.provision "Install clang 3.6 or greater",         :privileged => true,  type: :shell, inline: $install_clang_script
+  config.vm.provision "Install common development libraries", :privileged => true,  type: :shell, inline: "apt-get --assume-yes install libicu-dev libpython2.7-dev"
   config.vm.provision "Download Swift #{swift_version}",      :privileged => false, type: :shell, inline: "wget --progress=bar:force '#{source_directory}'/'#{source_name}'.tar.gz && wget --progress=bar:force '#{source_directory}'/'#{source_name}'.tar.gz.sig"
   config.vm.provision "Validate Swift signatures",            :privileged => false, type: :shell, inline: "wget -q -O - https://swift.org/keys/all-keys.asc | gpg --import - && gpg --keyserver hkp://pool.sks-keyservers.net --refresh-keys Swift && gpg --verify '#{source_name}'.tar.gz.sig"
   config.vm.provision "Install Swift",                        :privileged => false, type: :shell, inline: "tar zxf '#{source_name}'.tar.gz && sudo chown -R vagrant:vagrant swift-*"
@@ -125,3 +102,26 @@ Vagrant.configure("2") do |config|
   config.vm.provision "Display instructions",                 :privileged => false, type: :shell, inline: "echo \"Swift #{source_name} has been successfully installed on Linux\" && echo \"\" && echo \"To use it, call 'vagrant ssh' and once logged in, cd to the /vagrant directory\""
 end
 
+$install_clang_script = <<SCRIPT
+
+function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
+
+AVAILABLE_CLANG_VERSION=$(apt-cache policy clang | grep Candidate | cut -d ':' -f 3 | cut -d '-' -f 1)
+
+#
+# Clang 3.6 or greater is required for swift and REPL
+#
+if version_ge $AVAILABLE_CLANG_VERSION "3.6"; then
+    echo ""
+    echo "Clang version $AVAILABLE_CLANG_VERSION available, installing."
+    echo ""
+    apt-get --assume-yes install clang
+else
+    echo ""
+    echo "Clang version $AVAILABLE_CLANG_VERSION lower than required version, installing 3.6 instead."
+    echo ""
+    apt-get --assume-yes install clang-3.6 lldb-3.6 python-lldb-3.6
+    sudo ln -s /usr/bin/clang-3.6 /usr/bin/clang
+    sudo ln -s /usr/bin/clang++-3.6 /usr/bin/clang++
+fi
+SCRIPT
