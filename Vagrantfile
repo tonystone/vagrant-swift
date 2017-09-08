@@ -17,6 +17,9 @@
 #
 #   Created by Tony Stone on 4/29/16.
 #
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
 require 'getoptlong'
 
 #
@@ -76,9 +79,9 @@ else
 end
 
 Vagrant.configure("2") do |config|
- 
+
   #
-  # Warning: 
+  # Warning:
   #  - xenial  (16.04) boxes can NOT be used due to the issue reported here https://bugs.launchpad.net/cloud-images/+bug/1569237
   #  - yakkety (16.10) boxes should not be used because they are end of life (see https://wiki.ubuntu.com/Releases)
   #
@@ -86,34 +89,13 @@ Vagrant.configure("2") do |config|
 
   config.vm.provider "virtualbox"
 
-  config.vm.provider "parallels" do |v|
-    v.name = "Ubuntu 14.04 - Swift Development"
-    v.memory = 512
-  end
-
-  config.vm.provision "fix-no-tty", type: "shell" do |s|
-    s.privileged = false
-    s.inline = "sudo sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
-  end
-
-  #
-  # Shell script to install the swift development environment
-  #
-  config.vm.provision "shell", inline: <<-SHELL
+  config.vm.provision "Fix no TTY",                      type: :shell, inline: "sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
+  config.vm.provision "Change to non-interactive shell", type: :shell, inline: "ex +'%s@DPkg@//DPkg' -cwq /etc/apt/apt.conf.d/70debconf && sudo dpkg-reconfigure debconf -f noninteractive -p critical"
+  config.vm.provision "Update apt-get",                  type: :shell, inline: "apt-get update"
+  config.vm.provision "Install clang 3.6 or greater",    type: :shell, inline: <<-SHELL
     #!/bin/sh
 
     function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
-
-    #
-    # Configure for none interactive to avoid issue with failing to re-open stdin
-    #
-    sudo ex +"%s@DPkg@//DPkg" -cwq /etc/apt/apt.conf.d/70debconf
-    sudo dpkg-reconfigure debconf -f noninteractive -p critical
-
-    #
-    # Update apt-get first
-    #
-    sudo apt-get update
 
     AVAILABLE_CLANG_VERSION=$(apt-cache policy clang | grep Candidate | cut -d ':' -f 3 | cut -d '-' -f 1)
 
@@ -124,74 +106,22 @@ Vagrant.configure("2") do |config|
         echo ""
         echo "Clang version $AVAILABLE_CLANG_VERSION available, installing."
         echo ""
-        sudo apt-get --assume-yes install clang
+        apt-get --assume-yes install clang
     else
         echo ""
         echo "Clang version $AVAILABLE_CLANG_VERSION lower than required version, installing 3.6 instead."
         echo ""
-        sudo apt-get --assume-yes install clang-3.6 lldb-3.6 python-lldb-3.6
+        apt-get --assume-yes install clang-3.6 lldb-3.6 python-lldb-3.6
         sudo ln -s /usr/bin/clang-3.6 /usr/bin/clang
         sudo ln -s /usr/bin/clang++-3.6 /usr/bin/clang++
     fi
-
-    #
-    # Common (all ubuntu versions) development libraries
-    #
-    sudo apt-get --assume-yes install libicu-dev libpython2.7-dev
-
-    #
-    # Import the gpg keys
-    #
-    wget -q -O - https://swift.org/keys/all-keys.asc | gpg --import -
-
-    gpg --keyserver hkp://pool.sks-keyservers.net --refresh-keys Swift
-
-    #
-    # Note: We're using wget here because of a display issue with curl and vagrant.  The display is corrupt using curl.
-    #
-    wget --progress=bar:force "#{source_directory}"/"#{source_name}".tar.gz
-    wget --progress=bar:force "#{source_directory}"/"#{source_name}".tar.gz.sig
-
-    #
-    # Validate the file against the key
-    #
-    gpg --verify "#{source_name}".tar.gz.sig
-
-    if [ $? -eq 0 ]
-    then
-        #
-        # Expand the swift build into our current directory
-        # and update the permissions
-        #
-        tar zxf "#{source_name}".tar.gz
-
-        #
-        # Make the vagrant user the owner of all files.
-        #
-        sudo chown -R vagrant:vagrant swift-*
-
-        #
-        # Clean up
-        #
-        rm "#{source_name}".tar.gz
-        rm "#{source_name}".tar.gz.sig
-
-        # Update the path so we can get to swift
-        #
-        echo "export PATH=$(pwd)/#{source_name}/usr/bin:\"${PATH}\"" >> .profile
-        #
-        # Export C_INCLUDE_PATH and CPLUS_INCLUDE_PATH so that swift REPL is able to load libraries properly
-        #
-        echo "export C_INCLUDE_PATH=$(pwd)/#{source_name}/usr/lib/swift/clang/include/" >> .profile
-        echo "export CPLUS_INCLUDE_PATH=$C_INCLUDE_PATH" >> .profile
-        echo ""
-        echo "Swift #{source_name} has been successfully installed on Linux"
-        echo ""
-        echo "To use it, call 'vagrant ssh' and once logged in, cd to the /vagrant directory"
-        echo ""
-    else
-        echo "Error: Swift #{source_name} failed signature validation."
-    fi
-  SHELL
+   SHELL
+  config.vm.provision "Install common (all ubuntu versions) development libraries", type: :shell, inline: "apt-get --assume-yes install libicu-dev libpython2.7-dev"
+  config.vm.provision "Download Swift #{swift_version}",      :privileged => false, type: :shell, inline: "wget --progress=bar:force '#{source_directory}'/'#{source_name}'.tar.gz && wget --progress=bar:force '#{source_directory}'/'#{source_name}'.tar.gz.sig"
+  config.vm.provision "Validate Swift signatures",            :privileged => false, type: :shell, inline: "wget -q -O - https://swift.org/keys/all-keys.asc | gpg --import - && gpg --keyserver hkp://pool.sks-keyservers.net --refresh-keys Swift && gpg --verify '#{source_name}'.tar.gz.sig"
+  config.vm.provision "Install Swift",                        :privileged => false, type: :shell, inline: "tar zxf '#{source_name}'.tar.gz && sudo chown -R vagrant:vagrant swift-*"
+  config.vm.provision "Setup paths",                          :privileged => false, type: :shell, inline: "echo 'export PATH=$(pwd)/#{source_name}/usr/bin:\"${PATH}\"' >> .profile && echo 'export C_INCLUDE_PATH=$(pwd)/#{source_name}/usr/lib/swift/clang/include/' >> .profile && echo 'export CPLUS_INCLUDE_PATH=$C_INCLUDE_PATH' >> .profile"
+  config.vm.provision "Clean up",                             :privileged => false, type: :shell, inline: "rm '#{source_name}'.tar.gz && rm '#{source_name}'.tar.gz.sig"
+  config.vm.provision "Display instructions",                 :privileged => false, type: :shell, inline: "echo \"Swift #{source_name} has been successfully installed on Linux\" && echo \"\" && echo \"To use it, call 'vagrant ssh' and once logged in, cd to the /vagrant directory\""
 end
 
