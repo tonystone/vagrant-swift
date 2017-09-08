@@ -102,20 +102,42 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", inline: <<-SHELL
     #!/bin/sh
 
+    function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
+
     #
-    # Make sure the distro is up to date
+    # Configure for none interactive to avoid issue with failing to re-open stdin
     #
-    # sudo apt-get --assume-yes dist-upgrade
+    sudo ex +"%s@DPkg@//DPkg" -cwq /etc/apt/apt.conf.d/70debconf
+    sudo dpkg-reconfigure debconf -f noninteractive -p critical
 
     #
     # Update apt-get first
     #
     sudo apt-get update
 
+    AVAILABLE_CLANG_VERSION=$(apt-cache policy clang | grep Candidate | cut -d ':' -f 3 | cut -d '-' -f 1)
+
     #
-    # Install the needed development and admin packages
+    # Clang 3.6 or greater is required for swift and REPL
     #
-    sudo apt-get --assume-yes install clang libicu-dev libpython2.7-dev
+    if version_ge $AVAILABLE_CLANG_VERSION "3.6"; then
+        echo ""
+        echo "Clang version $AVAILABLE_CLANG_VERSION available, installing."
+        echo ""
+        sudo apt-get --assume-yes install clang
+    else
+        echo ""
+        echo "Clang version $AVAILABLE_CLANG_VERSION lower than required version, installing 3.6 instead."
+        echo ""
+        sudo apt-get --assume-yes install clang-3.6 lldb-3.6 python-lldb-3.6
+        sudo ln -s /usr/bin/clang-3.6 /usr/bin/clang
+        sudo ln -s /usr/bin/clang++-3.6 /usr/bin/clang++
+    fi
+
+    #
+    # Common (all ubuntu versions) development libraries
+    #
+    sudo apt-get --assume-yes install libicu-dev libpython2.7-dev
 
     #
     # Import the gpg keys
@@ -172,3 +194,4 @@ Vagrant.configure("2") do |config|
     fi
   SHELL
 end
+
