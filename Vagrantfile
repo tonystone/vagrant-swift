@@ -22,121 +22,172 @@
 
 require 'getoptlong'
 
-#
-# This script can be passed script arguments from the vagrant
-# command line.  At this point script arguments must come
-# before vagrant commands and arguments.
-#
-# Examples:
-#
-# > vagrant --swift-version=2017-09-05 up
-#
-# > vagrant --platform-version=16.10 --swift-version="2.2.1" up
-#
-:RELEASE
-:SNAPSHOT
-
 # Parameter defaults
-platform_provider="ubuntu"
-platform_version="16.04"
-swift_version="3.1.1"
-build_type=:RELEASE
+build=nil
+swift_version=nil
+platform_version=nil
 
 options = GetoptLong.new(
+    [ '--swift-release',    GetoptLong::REQUIRED_ARGUMENT ],
     [ '--platform-version', GetoptLong::REQUIRED_ARGUMENT ],
-    [ '--swift-version',    GetoptLong::REQUIRED_ARGUMENT ]
+    [ '--build',            GetoptLong::REQUIRED_ARGUMENT ],
 )
 options.quiet = true
 
 begin
   options.each do |option, value|
-    if option == '--platform-version' then platform_version=value
-    elsif option == '--swift-version' then swift_version=value
+    if    option == '--swift-release'    then swift_version=value
+    elsif option == '--platform-version' then platform_version=value
+    elsif option == '--build'            then build=value
     end
   end
 rescue GetoptLong::InvalidOption
   pass
 end
 
-platform="#{platform_provider}#{platform_version}"
-platform_dir=platform.tr('.', '')
-
-source_name=""
-source_directory=""
-
-#
-# Test whether the version is a :RELEASE or a :SNAPSHOT
-# and if :SNAPSHOT append the '-a' to the end of the version.
-#
-if swift_version =~ (/^\d{1}\.\d{1}(\.\d{1})?$/)
-  build_type=:RELEASE
-elsif swift_version =~ (/^\d{4}-\d{2}-\d{2}$/)
-  build_type=:SNAPSHOT
-  swift_version+='-a'
-else
-  puts 'Invalid Argument: --swift-version must be in the release form ##.##[.##] or snapshot form ####-##-##.'
+begin
+  build_info = ParameterParser.parse(build, swift_version, platform_version)
+rescue StandardError => e
+  puts "Invalid Argument: #{e}"
   abort
-end
-
-if build_type == :SNAPSHOT
-  # Example:
-  #
-  # https://swift.org/builds/development/ubuntu1610/swift-DEVELOPMENT-SNAPSHOT-2017-09-05-a/swift-DEVELOPMENT-SNAPSHOT-2017-09-05-a-ubuntu16.10.tar.gz
-  #
-  source_directory = "https://swift.org/builds/development/#{platform_dir}/swift-DEVELOPMENT-SNAPSHOT-#{swift_version}"
-  source_name      = "swift-DEVELOPMENT-SNAPSHOT-#{swift_version}-#{platform}"
-
-else
-  #
-  # Example:
-  #
-  # https://swift.org/builds/swift-3.1.1-release/ubuntu1610/swift-3.1.1-RELEASE/swift-3.1.1-RELEASE-ubuntu16.10.tar.gz
-  #
-  source_directory = "https://swift.org/builds/swift-#{swift_version}-release/#{platform_dir}/swift-#{swift_version}-RELEASE"
-  source_name      = "swift-#{swift_version}-RELEASE-#{platform}"
 end
 
 Vagrant.configure("2") do |config|
 
-  config.vm.box = "bento/#{platform_provider}-#{platform_version}"
+  config.vm.box = "bento/#{build_info.platform_provider}-#{build_info.platform_version}"
 
   config.vm.provider "virtualbox" do |v|
-    v.name = "Swift " + "#{build_type}".capitalize + " #{swift_version} Development (#{platform_provider} #{platform_version})"
+    v.name = "Swift " + "#{build_info.type}".capitalize + " #{build_info.version} Development (#{build_info.platform_provider} #{build_info.platform_version})"
   end
 
-  config.vm.provision "Fix no TTY",                           :privileged => true,  type: :shell, inline: "sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
-  config.vm.provision "Change to non-interactive shell",      :privileged => true,  type: :shell, inline: "ex +'%s@DPkg@//DPkg' -cwq /etc/apt/apt.conf.d/70debconf && sudo dpkg-reconfigure debconf -f noninteractive -p critical"
-  config.vm.provision "Update apt-get",                       :privileged => true,  type: :shell, inline: "apt-get update"
-  config.vm.provision "Install clang 3.6 or greater",         :privileged => true,  type: :shell, inline: $install_clang_script
-  config.vm.provision "Install common development libraries", :privileged => true,  type: :shell, inline: "apt-get --assume-yes install libicu-dev libpython2.7-dev"
-  config.vm.provision "Download Swift #{swift_version}",      :privileged => false, type: :shell, inline: "wget --progress=bar:force '#{source_directory}'/'#{source_name}'.tar.gz && wget --progress=bar:force '#{source_directory}'/'#{source_name}'.tar.gz.sig"
-  config.vm.provision "Validate Swift signatures",            :privileged => false, type: :shell, inline: "wget -q -O - https://swift.org/keys/all-keys.asc | gpg --import - && gpg --keyserver hkp://pool.sks-keyservers.net --refresh-keys Swift && gpg --verify '#{source_name}'.tar.gz.sig"
-  config.vm.provision "Install Swift",                        :privileged => false, type: :shell, inline: "tar zxf '#{source_name}'.tar.gz && sudo chown -R vagrant:vagrant swift-*"
-  config.vm.provision "Setup paths",                          :privileged => false, type: :shell, inline: "echo 'export PATH=$(pwd)/#{source_name}/usr/bin:\"${PATH}\"' >> .profile && echo 'export C_INCLUDE_PATH=$(pwd)/#{source_name}/usr/lib/swift/clang/include/' >> .profile && echo 'export CPLUS_INCLUDE_PATH=$C_INCLUDE_PATH' >> .profile"
-  config.vm.provision "Clean up",                             :privileged => false, type: :shell, inline: "rm '#{source_name}'.tar.gz && rm '#{source_name}'.tar.gz.sig"
-  config.vm.provision "Display instructions",                 :privileged => false, type: :shell, inline: "echo \"Swift #{source_name} has been successfully installed on Linux\" && echo \"\" && echo \"To use it, call 'vagrant ssh' and once logged in, cd to the /vagrant directory\""
+  config.vm.provision "Fix no TTY",                               :privileged => true,  type: :shell, inline: "sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
+  config.vm.provision "Change to non-interactive shell",          :privileged => true,  type: :shell, inline: "ex +'%s@DPkg@//DPkg' -cwq /etc/apt/apt.conf.d/70debconf && sudo dpkg-reconfigure debconf -f noninteractive -p critical"
+  config.vm.provision "Update apt-get",                           :privileged => true,  type: :shell, inline: "apt-get update"
+  config.vm.provision "Install clang 3.6 or greater",             :privileged => true,  type: :shell, inline: $install_clang_script
+  config.vm.provision "Install common development libraries",     :privileged => true,  type: :shell, inline: "apt-get --assume-yes install libicu-dev libpython2.7-dev"
+  config.vm.provision "Download Swift #{build_info.source_name}", :privileged => false, type: :shell, inline: "wget --progress=bar:force '#{build_info.full_path}' && wget --progress=bar:force '#{build_info.full_path}'.sig"
+  config.vm.provision "Validate Swift signatures",                :privileged => false, type: :shell, inline: "wget -q -O - https://swift.org/keys/all-keys.asc | gpg --import - && gpg --keyserver hkp://pool.sks-keyservers.net --refresh-keys Swift && gpg --verify '#{build_info.source_name}'.sig"
+  config.vm.provision "Install Swift",                            :privileged => false, type: :shell, inline: "tar zxf '#{build_info.source_name}' && sudo chown -R vagrant:vagrant swift-*"
+  config.vm.provision "Setup paths",                              :privileged => false, type: :shell, inline: "echo 'export PATH=$(pwd)/#{build_info.name}/usr/bin:\"${PATH}\"' >> .profile && echo 'export C_INCLUDE_PATH=$(pwd)/#{build_info.name}/usr/lib/swift/clang/include/' >> .profile && echo 'export CPLUS_INCLUDE_PATH=$C_INCLUDE_PATH' >> .profile"
+  config.vm.provision "Clean up",                                 :privileged => false, type: :shell, inline: "rm '#{build_info.source_name}' && rm '#{build_info.source_name}'.sig"
+  config.vm.provision "Display instructions",                     :privileged => false, type: :shell, inline: "echo \"Swift #{build_info.source_name} has been successfully installed on Linux\" && echo \"\" && echo \"To use it, call 'vagrant ssh' and once logged in, cd to the /vagrant directory\""
 end
 
-$install_clang_script = <<SCRIPT
+BEGIN {
 
-function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
+  TYPE_DEFAULT='RELEASE'
+  VERSION_DEFAULT='3.1.1'
+  SNAPSHOT_DEFAULT=nil
+  PLATFORM_PROVIDER_DEFAULT='ubuntu'
+  PLATFORM_VERSION_DEFAULT='14.04'
 
-AVAILABLE_CLANG_VERSION=$(apt-cache policy clang | grep Candidate | cut -d ':' -f 3 | cut -d '-' -f 1)
+  # No-op function
+  def pass; end
+  
+  class BuildInfo
+    attr_accessor :type, :version, :snapshot, :platform_provider, :platform_version
 
-#
-# Clang 3.6 or greater is required for swift and REPL
-#
-if version_ge $AVAILABLE_CLANG_VERSION "3.6"; then
-    echo ""
-    echo "Clang version $AVAILABLE_CLANG_VERSION available, installing."
-    echo ""
-    apt-get --assume-yes install clang
-else
-    echo ""
-    echo "Clang version $AVAILABLE_CLANG_VERSION lower than required version, installing 3.6 instead."
-    echo ""
-    apt-get --assume-yes install clang-3.6 lldb-3.6 python-lldb-3.6
-    sudo ln -s /usr/bin/clang-3.6 /usr/bin/clang
-    sudo ln -s /usr/bin/clang++-3.6 /usr/bin/clang++
-fi
+    def initialize(type: type = TYPE_DEFAULT, version: version = VERSION_DEFAULT, snapshot: snapshot = SNAPSHOT_DEFAULT, platform_provider: platform_provider = PLATFORM_PROVIDER_DEFAULT, platform_version: platform_version = PLATFORM_VERSION_DEFAULT)
+
+      @type = type
+      @version = version
+      @snapshot = snapshot
+      @platform_provider = platform_provider
+      @platform_version = platform_version
+    end
+
+    def full_path
+      platform      = platform_provider + platform_version
+      path_platform = platform.tr('.', '')
+      is_branch     = version != nil
+
+      case [type, is_branch]
+        when ['RELEASE',              true]  then "https://swift.org/builds/swift-#{version}-release/#{path_platform}/swift-#{version}-RELEASE/swift-#{version}-RELEASE-#{platform}.tar.gz"
+        when ['DEVELOPMENT-SNAPSHOT', false] then "https://swift.org/builds/development/#{path_platform}/swift-DEVELOPMENT-SNAPSHOT-#{snapshot}-a/swift-DEVELOPMENT-SNAPSHOT-#{snapshot}-a-#{platform}.tar.gz"
+        when ['DEVELOPMENT-SNAPSHOT', true]  then "https://swift.org/builds/swift-#{version}-branch/#{path_platform}/swift-#{version}-DEVELOPMENT-SNAPSHOT-#{snapshot}-a/swift-#{version}-DEVELOPMENT-SNAPSHOT-#{snapshot}-a-#{platform}.tar.gz"
+        # Note: these older releases were only 2.2 release so the hard coded swift-2.2-branch should be harmless
+        when ['SNAPSHOT',             true]  then "https://swift.org/builds/swift-2.2-branch/#{path_platform}/swift-#{version}-SNAPSHOT-#{snapshot}-a/swift-#{version}-SNAPSHOT-#{snapshot}-a-#{platform}.tar.gz"
+        else nil
+      end
+    end
+
+    def source_name
+      full_path.split('/').last
+    end
+
+    def name
+      source_name.chomp('.tar.gz')
+    end
+  end
+
+  class ParameterParser
+
+    def self.parse(build, version, platform_version)
+
+      if build != nil
+        parse_build build
+      elsif version || platform_version
+        parse_version_platform version, platform_version
+      else
+        BuildInfo.new
+      end
+    end
+
+    class << self
+      private
+
+      def parse_build(build)
+        group = build.match(/.*swift(-(\d{1}\.\d{1}(\.\d{1})?))?(-(RELEASE|DEVELOPMENT-SNAPSHOT|SNAPSHOT))?(-(\d{4}-\d{2}-\d{2})-a)?-([a-zA-Z]+)(\d{2}\.\d{2}).*/)
+
+        raise "Build '#{build}' is invalid or in an invalid format." unless group
+
+        BuildInfo.new(type: group[5], version: group[2], snapshot: group[7], platform_provider: group[8], platform_version: group[9])
+      end
+
+      def parse_version_platform(swift_version, platform_version)
+        swift_version_group=nil
+        platform_version_group=nil
+
+        if swift_version
+          swift_version_group = swift_version.match(/^((\d{1}\.\d{1})(\.\d{1})?)$/)
+
+          raise "Value '#{swift_version}' is an invalid swift-version." unless swift_version_group
+        end
+
+        if platform_version
+          platform_version_group = platform_version.match(/^(\d{2}\.\d{2})$/)
+
+          raise "Value '#{platform_version}' is an invalid platform-version." unless platform_version_group
+        end
+
+        BuildInfo.new(version: swift_version_group[1], platform_version: platform_version_group[1] )
+      end
+    end
+  end
+
+  $install_clang_script = <<SCRIPT
+
+    function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
+
+    AVAILABLE_CLANG_VERSION=$(apt-cache policy clang | grep Candidate | cut -d ':' -f 3 | cut -d '-' -f 1)
+
+    #
+    # Clang 3.6 or greater is required for swift and REPL
+    #
+    if version_ge $AVAILABLE_CLANG_VERSION "3.6"; then
+        echo ""
+        echo "Clang version $AVAILABLE_CLANG_VERSION available, installing."
+        echo ""
+        apt-get --assume-yes install clang
+    else
+        echo ""
+        echo "Clang version $AVAILABLE_CLANG_VERSION lower than required version, installing 3.6 instead."
+        echo ""
+        apt-get --assume-yes install clang-3.6 lldb-3.6 python-lldb-3.6
+        sudo ln -s /usr/bin/clang-3.6 /usr/bin/clang
+        sudo ln -s /usr/bin/clang++-3.6 /usr/bin/clang++
+    fi
 SCRIPT
+
+}
+
