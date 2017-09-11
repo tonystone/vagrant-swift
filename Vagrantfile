@@ -22,7 +22,15 @@
 
 require 'getoptlong'
 
-# Parameter defaults
+#
+# Default build information (if no parameters are passed)
+#
+TYPE_DEFAULT='RELEASE'
+VERSION_DEFAULT='3.1.1'
+SNAPSHOT_DEFAULT=nil
+PLATFORM_PROVIDER_DEFAULT='ubuntu'
+PLATFORM_VERSION_DEFAULT='14.04'
+
 build=nil
 swift_version=nil
 platform_version=nil
@@ -74,12 +82,6 @@ Vagrant.configure("2") do |config|
 end
 
 BEGIN {
-
-  TYPE_DEFAULT='RELEASE'
-  VERSION_DEFAULT='3.1.1'
-  SNAPSHOT_DEFAULT=nil
-  PLATFORM_PROVIDER_DEFAULT='ubuntu'
-  PLATFORM_VERSION_DEFAULT='14.04'
 
   # No-op function
   def pass; end
