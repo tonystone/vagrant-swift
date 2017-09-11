@@ -10,20 +10,33 @@ A parameterized Vagrant file to create a Swift development environment on Linux 
 
 > Information about available Swift builds and supported **Ubuntu** versions for each build can be obtained from the swift.org site at [http://swift.org/download](http://swift.org/download).
 
+
+Vagrant Swift supports all builds from the `swift.org/download` site including:
+
+- Releases
+- Trunk Development (master)
+- Swift 4.0 Development
+- Swift 3.1 Development
+- Older Release Branches (which include all Swift 2.2 builds)
+
 ## Usage
 
-The vagrant script has been parameterized with 2 **optional** parameters:
+The vagrant script has been parameterized with 3 **optional** parameters:
 ```
+--swift-release
 --platform-version
---swift-version
+--build
 ```
-The `platform-version` accepts the **ubuntu** version of the VM you would like start.  This must match one of the versions supported by the Swift builds on `swift.org/download` site.  The version must be in the form of `##.##` (for example `16.04` or `16.10`.)
+The `--swift-release` parameter accepts a RELEASE version number in the form of `#.#[.#]`.
+
+The `--platform-version` accepts the **ubuntu** version of the VM you would like start.  This must match one of the versions supported by the Swift builds on `swift.org/download` site.  The version must be in the form of `##.##` (for example `16.04` or `16.10`.)
 
 > **Note**: All Swift builds are currently built for `ubuntu` so there is currently no option to change the OS.
 
-The `swift-version` parameter accepts either a RELEASE version number in the form of `#.#[.#]` or a SNAPSHOT in the form of `####-##-##`.
+The `--build` parameter can be used to create an environment from a build listed on the `swift.org/download` site.  You can specify the entire link to the build or just the last path component or build name.
 
-By default, the vagrant script will use the latest release of Swift (currently 3.1.1.) and Ubuntu 16.04 if no parameters are passed.  If this is your only requirement, simply call `vagrant up` as you normally would.
+
+By default, the vagrant script will use the latest release of Swift (currently 3.1.1.) and Ubuntu 14.04 if no parameters are passed.  If this is your only requirement, simply call `vagrant up` as you normally would.
 
 ```
    > vagrant up
@@ -32,22 +45,27 @@ By default, the vagrant script will use the latest release of Swift (currently 3
 To use a particular release, use the following syntax.
 
 ```
-   > vagrant --swift-version=3.0 up
+   > vagrant --swift-release=3.0 up
 ```
-
-For a development snapshot, use the following syntax specifying the date version of the snapshot.
-
-```
-   > vagrant --swift-version=2017-09-05 up
-```
-
 And to also supply the platform-version.
 
 ```
-   > vagrant --platform-version=16.10 --swift-version=2017-09-05 up
+   > vagrant --platform-version=16.10 --swift-release=3.0 up
+```
+> **Note**: `--platform-version` and `--swift-release` can be specified individulally.
+
+For a development trunk or branch snapshot, use the following syntax specifying the build information obtained from the `swift.org` website for the build.
+
+```
+   > vagrant --build='swift-4.0-DEVELOPMENT-SNAPSHOT-2017-09-07-a-ubuntu16.04' up
+```
+You may also pass the entire path to the `--build` parameter as in the following example.
+
+```
+   > vagrant --build='https://swift.org/builds/swift-4.0-branch/ubuntu1604/swift-4.0-DEVELOPMENT-SNAPSHOT-2017-09-07-a/swift-4.0-DEVELOPMENT-SNAPSHOT-2017-09-07-a-ubuntu16.04.tar.gz' up
 ```
 
-> **Note**: all vagrant specific parameters should come after the script parameters `--platform-version` and `--swift-version`.
+> **Note**: all vagrant specific parameters should come after the script parameters `--swift-release`, `--platform-version` and `--build`.
 
 ## License
 
