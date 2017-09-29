@@ -67,6 +67,22 @@ You may also pass the entire path to the `--build` parameter as in the following
 
 > **Note**: all vagrant specific parameters should come after the script parameters `--swift-release`, `--platform-version` and `--build`.
 
+## Installation
+
+The best way to install `vagrant-swift` and be able to get updates as they are made is to use a soft link within your workspace structure. A soft-link created within the root of your project to the Vagrant file in this project will allow you to run `vagrant up` from the root which will map the current project source files within the Linux VM.
+
+For example, if you place all your projects under a directory named `workspaces` and have a project called `my-swift-project` along with a clone of the `vagrant-swift` project in the same workspace directory:
+```
+~/workspaces/my-swift-project
+~/workspaces/vagrant-swift
+```
+On macOS create a relative link as follows:
+```
+cd ~/workspaces/my-swift-project
+ln -s ../vagrant-swift/Vagrantfile VagrantFile
+```
+Now all you need to do is call `vagrant up` in your projects root directory, and you will have a fully functional development environment for Swift Linux work.
+
 ## License
 
 Vagrant Swift is released under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html)
