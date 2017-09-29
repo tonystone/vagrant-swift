@@ -83,6 +83,8 @@ ln -s ../vagrant-swift/Vagrantfile VagrantFile
 ```
 Now all you need to do is call `vagrant up` in your projects root directory, and you will have a fully functional development environment for Swift Linux work.
 
+> Note: to avoid checking the symbolic link into your projects git repo, ad `Vagrantfile` to your `.gitignore` for the project.
+
 ## License
 
 Vagrant Swift is released under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html)
