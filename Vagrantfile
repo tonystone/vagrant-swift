@@ -26,7 +26,7 @@ require 'getoptlong'
 # Default build information (if no parameters are passed)
 #
 TYPE_DEFAULT='RELEASE'
-VERSION_DEFAULT='3.1.1'
+VERSION_DEFAULT='4.0'
 SNAPSHOT_DEFAULT=nil
 PLATFORM_PROVIDER_DEFAULT='ubuntu'
 PLATFORM_VERSION_DEFAULT='14.04'
@@ -72,7 +72,7 @@ Vagrant.configure("2") do |config|
   config.vm.provision "Change to non-interactive shell",          :privileged => true,  type: :shell, inline: "ex +'%s@DPkg@//DPkg' -cwq /etc/apt/apt.conf.d/70debconf && sudo dpkg-reconfigure debconf -f noninteractive -p critical"
   config.vm.provision "Update apt-get",                           :privileged => true,  type: :shell, inline: "apt-get update"
   config.vm.provision "Install clang 3.6 or greater",             :privileged => true,  type: :shell, inline: $install_clang_script
-  config.vm.provision "Install common development libraries",     :privileged => true,  type: :shell, inline: "apt-get --assume-yes install libicu-dev libpython2.7-dev"
+  config.vm.provision "Install common development libraries",     :privileged => true,  type: :shell, inline: "apt-get --assume-yes install libcurl3 libicu-dev libpython2.7-dev"
   config.vm.provision "Download Swift #{build_info.source_name}", :privileged => false, type: :shell, inline: "wget --progress=bar:force '#{build_info.full_path}' && wget --progress=bar:force '#{build_info.full_path}'.sig"
   config.vm.provision "Validate Swift signatures",                :privileged => false, type: :shell, inline: "wget -q -O - https://swift.org/keys/all-keys.asc | gpg --import - && gpg --keyserver hkp://pool.sks-keyservers.net --refresh-keys Swift && gpg --verify '#{build_info.source_name}'.sig"
   config.vm.provision "Install Swift",                            :privileged => false, type: :shell, inline: "tar zxf '#{build_info.source_name}' && sudo chown -R vagrant:vagrant swift-*"
@@ -89,13 +89,13 @@ BEGIN {
   class BuildInfo
     attr_accessor :type, :version, :snapshot, :platform_provider, :platform_version
 
-    def initialize(type: type = TYPE_DEFAULT, version: version = VERSION_DEFAULT, snapshot: snapshot = SNAPSHOT_DEFAULT, platform_provider: platform_provider = PLATFORM_PROVIDER_DEFAULT, platform_version: platform_version = PLATFORM_VERSION_DEFAULT)
+    def initialize(type: type = nil, version: version = nil, snapshot: snapshot = nil, platform_provider: platform_provider = nil, platform_version: platform_version = nil)
 
-      @type = type
-      @version = version
-      @snapshot = snapshot
-      @platform_provider = platform_provider
-      @platform_version = platform_version
+      @type = type || TYPE_DEFAULT
+      @version = version || VERSION_DEFAULT
+      @snapshot = snapshot || SNAPSHOT_DEFAULT
+      @platform_provider = platform_provider || PLATFORM_PROVIDER_DEFAULT
+      @platform_version = platform_version || PLATFORM_VERSION_DEFAULT
     end
 
     def full_path
@@ -147,22 +147,20 @@ BEGIN {
       end
 
       def parse_version_platform(swift_version, platform_version)
-        swift_version_group=nil
-        platform_version_group=nil
 
         if swift_version
           swift_version_group = swift_version.match(/^((\d{1}\.\d{1})(\.\d{1})?)$/)
 
           raise "Value '#{swift_version}' is an invalid swift-version." unless swift_version_group
-        end
+	      end
 
         if platform_version
           platform_version_group = platform_version.match(/^(\d{2}\.\d{2})$/)
 
           raise "Value '#{platform_version}' is an invalid platform-version." unless platform_version_group
-        end
+	      end
 
-        BuildInfo.new(version: swift_version_group[1], platform_version: platform_version_group[1] )
+        BuildInfo.new(version: swift_version, platform_version: platform_version )
       end
     end
   end
