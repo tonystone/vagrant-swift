@@ -65,7 +65,7 @@ Vagrant.configure("2") do |config|
   config.vm.box = "bento/#{build_info.platform_provider}-#{build_info.platform_version}"
 
   config.vm.provider "virtualbox" do |v|
-    v.name = "Swift " + "#{build_info.type}".capitalize + " #{build_info.version} Development (#{build_info.platform_provider} #{build_info.platform_version})"
+    v.name = "#{File.basename(Dir.pwd)}: Swift " + "#{build_info.type}".capitalize + " #{build_info.version} Development (#{build_info.platform_provider} #{build_info.platform_version})"
   end
 
   config.vm.provision "Fix no TTY",                               :privileged => true,  type: :shell, inline: "sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
