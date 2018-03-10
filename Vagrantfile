@@ -74,7 +74,7 @@ Vagrant.configure("2") do |config|
   config.vm.provision "Update apt-get",                           :privileged => true,  type: :shell, inline: "apt-get update"
   config.vm.provision "Install clang 3.6 or greater",             :privileged => true,  type: :shell, inline: $install_clang_script
   config.vm.provision "Install common development libraries",     :privileged => true,  type: :shell, inline: "apt-get --assume-yes install libcurl3 libicu-dev libpython2.7-dev"
-  config.vm.provision "Install ruby for build-tools",             :privileged => true,  type: :shell, inline: "apt-get --assume-yes install ruby-dev"
+  config.vm.provision "Install build-tools dependencies",         :privileged => true,  type: :shell, inline: "apt-get --assume-yes install git ruby-dev"
   config.vm.provision "Install cmake 3.10",                       :privileged => true,  type: :shell, inline: "wget --progress=bar:force https://cmake.org/files/v3.10/cmake-3.10.0-Linux-x86_64.sh && sudo mkdir /opt/cmake && sudo sh cmake-3.10.0-Linux-x86_64.sh --skip-license --exclude-subdir --prefix=/opt/cmake && sudo ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake; "
   config.vm.provision "Download Swift #{build_info.source_name}", :privileged => false, type: :shell, inline: "wget --progress=bar:force '#{build_info.full_path}' && wget --progress=bar:force '#{build_info.full_path}'.sig"
   config.vm.provision "Validate Swift signatures",                :privileged => false, type: :shell, inline: "wget -q -O - https://swift.org/keys/all-keys.asc | gpg --import - && gpg --keyserver hkp://pool.sks-keyservers.net --refresh-keys Swift && gpg --verify '#{build_info.source_name}'.sig"
